@@ -64,6 +64,10 @@ contextBridge.exposeInMainWorld("heynote", {
 
         async selectLocation() {
             return await ipcRenderer.invoke("buffer-content:selectLocation")
+        },
+
+        executeCode(executionContext) {
+            return ipcRenderer.invoke("run-code", executionContext)
         }
     },
 

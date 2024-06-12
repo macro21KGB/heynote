@@ -1,11 +1,10 @@
 import { EditorSelection } from "@codemirror/state"
-import { heynoteEvent, LANGUAGE_CHANGE, CURRENCIES_LOADED, ADD_NEW_BLOCK } from "../annotation.js";
+import { heynoteEvent, LANGUAGE_CHANGE, CURRENCIES_LOADED, ADD_NEW_BLOCK, SET_CONTENT } from "../annotation.js";
 import { blockState, getActiveNoteBlock, getFirstNoteBlock, getLastNoteBlock, getNoteBlockFromPos } from "./block"
 import { moveLineDown, moveLineUp } from "./move-lines.js";
 import { selectAll } from "./select-all.js";
-
+import CodeExecutor from "./execute-code.js";
 export { moveLineDown, moveLineUp, selectAll }
-
 
 export const insertNewBlockAtCursor = ({ state, dispatch }) => {
     if (state.readOnly)
@@ -182,16 +181,16 @@ function nextBlock(state, range) {
     }
 }
 
-export function gotoNextBlock({state, dispatch}) {
+export function gotoNextBlock({ state, dispatch }) {
     return moveSel(state, dispatch, range => nextBlock(state, range))
 }
-export function selectNextBlock({state, dispatch}) {
+export function selectNextBlock({ state, dispatch }) {
     return extendSel(state, dispatch, range => nextBlock(state, range))
 }
-export function gotoPreviousBlock({state, dispatch}) {
+export function gotoPreviousBlock({ state, dispatch }) {
     return moveSel(state, dispatch, range => previousBlock(state, range))
 }
-export function selectPreviousBlock({state, dispatch}) {
+export function selectPreviousBlock({ state, dispatch }) {
     return extendSel(state, dispatch, range => previousBlock(state, range))
 }
 
@@ -257,19 +256,19 @@ function nextParagraph(state, range) {
     return EditorSelection.cursor(block.content.to)
 }
 
-export function gotoNextParagraph({state, dispatch}) {
+export function gotoNextParagraph({ state, dispatch }) {
     return moveSel(state, dispatch, range => nextParagraph(state, range))
 }
 
-export function selectNextParagraph({state, dispatch}) {
+export function selectNextParagraph({ state, dispatch }) {
     return extendSel(state, dispatch, range => nextParagraph(state, range))
 }
 
-export function gotoPreviousParagraph({state, dispatch}) {
+export function gotoPreviousParagraph({ state, dispatch }) {
     return moveSel(state, dispatch, range => previousParagraph(state, range))
 }
 
-export function selectPreviousParagraph({state, dispatch}) {
+export function selectPreviousParagraph({ state, dispatch }) {
     return extendSel(state, dispatch, range => previousParagraph(state, range))
 }
 
@@ -283,7 +282,7 @@ function newCursor(view, below) {
         let range = ranges[i]
         let newRange = view.moveVertically(range, below)
         let exists = false
-        for (let j=0; j < ranges.length; j++) {
+        for (let j = 0; j < ranges.length; j++) {
             if (newRange.eq(ranges[j])) {
                 exists = true
                 break
@@ -294,7 +293,7 @@ function newCursor(view, below) {
         }
     }
     const newSelection = EditorSelection.create(newRanges, sel.mainIndex)
-    view.dispatch({selection: newSelection})
+    view.dispatch({ selection: newSelection })
 }
 
 export function newCursorBelow(view) {
@@ -309,7 +308,48 @@ export function triggerCurrenciesLoaded(state, dispatch) {
     // Trigger empty change transaction that is annotated with CURRENCIES_LOADED
     // This will make Math blocks re-render so that currency conversions are applied
     dispatch(state.update({
-        changes:{from: 0, to: 0, insert:""},
+        changes: { from: 0, to: 0, insert: "" },
         annotations: [heynoteEvent.of(CURRENCIES_LOADED)],
     }))
+}
+
+export function executeCodeInCurrentBlock({ state, dispatch }) {
+
+
+    const block = getActiveNoteBlock(state)
+    const blockLanguage = block.language.name.toLowerCase()
+    const executor = new CodeExecutor()
+
+    // Check if the language is executable
+    // If not, show a notification and return
+    if (!executor.getExecutableLanguages().includes(blockLanguage)) {
+
+        const NOTIFICATION_TITLE = 'Heynote Execute Code'
+        const NOTIFICATION_BODY =
+            'The language of the current block is not executable. Please change to a executable language.'
+
+        new Notification(NOTIFICATION_TITLE, { body: NOTIFICATION_BODY })
+        return false
+    }
+
+    const content = state.doc.sliceString(block.content.from, block.content.to)
+    window.heynote.buffer.executeCode(executor.getContext(blockLanguage, content)).then((codeResult) => {
+        dispatch({
+            changes: {
+                from: block.content.to,
+                to: block.content.to,
+                insert: "\n---\n" + codeResult,
+            },
+            annotations: [heynoteEvent.of(SET_CONTENT)],
+        })
+    }).catch((error) => {
+        dispatch({
+            changes: {
+                from: block.content.to,
+                to: block.content.to,
+                insert: "\n" + error.message,
+            },
+            annotations: [heynoteEvent.of(SET_CONTENT)],
+        })
+    })
 }

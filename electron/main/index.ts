@@ -1,7 +1,8 @@
-import { app, BrowserWindow, Tray, shell, ipcMain, Menu, nativeTheme, globalShortcut, nativeImage, screen } from 'electron'
+import { app, BrowserWindow, Tray, shell, ipcMain, Menu, nativeTheme, globalShortcut, nativeImage, screen, utilityProcess } from 'electron'
 import { release } from 'node:os'
 import { join } from 'node:path'
 import fs from "fs"
+import child_process from "node:child_process"
 
 import { menu, getTrayMenu } from './menu'
 import { WINDOW_CLOSE_EVENT, SETTINGS_CHANGE_EVENT } from '../constants';
@@ -10,6 +11,7 @@ import { isDev, isLinux, isMac, isWindows } from '../detect-platform';
 import { initializeAutoUpdate, checkForUpdates } from './auto-update';
 import { fixElectronCors } from './cors';
 import { loadBuffer, contentSaved } from './buffer';
+import { ChildProcess } from 'node:child_process'
 
 
 // The built directory structure
@@ -83,7 +85,7 @@ async function createWindow() {
         x: CONFIG.get("windowConfig.x"),
         y: CONFIG.get("windowConfig.y"),
     }
-    
+
     // windowConfig.x and windowConfig.y will be undefined when config file is missing, e.g. first time run
     if (windowConfig.x !== undefined && windowConfig.y !== undefined) {
         // check if window is outside of screen, or too large
@@ -180,11 +182,11 @@ async function createWindow() {
     })
 
     // Make all links open with the browser, not with the application
-    win.webContents.setWindowOpenHandler(({url}) => {
+    win.webContents.setWindowOpenHandler(({ url }) => {
         if (url.startsWith('https:') || url.startsWith('http:')) {
             shell.openExternal(url)
         }
-        return {action: 'deny'}
+        return { action: 'deny' }
     })
 
     fixElectronCors(win)
@@ -196,7 +198,7 @@ function createTray() {
         img = nativeImage.createFromPath(join(process.env.PUBLIC, "iconTemplate.png"))
     } else if (isLinux) {
         img = nativeImage.createFromPath(join(process.env.PUBLIC, 'favicon-linux.png'));
-    } else{
+    } else {
         img = nativeImage.createFromPath(join(process.env.PUBLIC, 'favicon.ico'));
     }
     tray = new Tray(img);
@@ -241,14 +243,14 @@ function registerGlobalHotkey() {
                         }
                     }
                 } else {
-                    app.focus({steal: true})
+                    app.focus({ steal: true })
                     if (win.isMinimized()) {
                         win.restore()
                     }
                     if (!win.isVisible()) {
                         win.show()
                     }
-                    
+
                     win.focus()
                 }
             })
@@ -283,7 +285,7 @@ function registerAlwaysOnTop() {
     if (CONFIG.get("settings.alwaysOnTop")) {
         const disableAlwaysOnTop = () => {
             win.setAlwaysOnTop(true, "floating");
-            win.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
+            win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
             win.setFullScreenable(false);
         }
         // if we're in fullscreen mode, we need to exit fullscreen before we can set alwaysOnTop
@@ -343,8 +345,50 @@ ipcMain.handle('dark-mode:set', (event, mode) => {
 
 ipcMain.handle('dark-mode:get', () => nativeTheme.themeSource)
 
+
 // load buffer on app start
 loadBuffer()
+
+ipcMain.handle('run-code', (event, options: { executable: string, args: string[] }) => {
+
+    return new Promise((resolve, reject) => {
+        let pythonProcess: ChildProcess
+        try {
+            pythonProcess = child_process.spawn(options.executable, options.args)
+
+        } catch (error) {
+            reject("Error running ccode: " + error.message)
+            return
+        }
+
+        let output = ""
+        const timer = setTimeout(() => {
+            pythonProcess.kill()
+            reject("Execution code timed out")
+        }, 5000)
+
+        pythonProcess.stdout.on("data", (data) => {
+            output += data.toString()
+        })
+
+        pythonProcess.stderr.on("data", (data) => {
+            output += data.toString()
+        })
+
+        pythonProcess.on("close", (code) => {
+            clearTimeout(timer)
+            resolve(output)
+        })
+
+        pythonProcess.on("error", (error) => {
+            clearTimeout(timer)
+            reject("Error running code: " + error.message)
+        })
+
+    })
+
+
+})
 
 
 ipcMain.handle('settings:set', async (event, settings) => {
