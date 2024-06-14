@@ -1,6 +1,6 @@
 import { EditorSelection } from "@codemirror/state"
 import { heynoteEvent, LANGUAGE_CHANGE, CURRENCIES_LOADED, ADD_NEW_BLOCK, SET_CONTENT } from "../annotation.js";
-import { blockState, getActiveNoteBlock, getFirstNoteBlock, getLastNoteBlock, getNoteBlockFromPos } from "./block"
+import { blockState, getActiveNoteBlock, getActiveNoteBlockCodeSection, getFirstNoteBlock, getLastNoteBlock, getNoteBlockFromPos } from "./block"
 import { moveLineDown, moveLineUp } from "./move-lines.js";
 import { selectAll } from "./select-all.js";
 import CodeExecutor from "./execute-code.js";
@@ -332,13 +332,18 @@ export function executeCodeInCurrentBlock({ state, dispatch }) {
         return false
     }
 
-    const content = state.doc.sliceString(block.content.from, block.content.to)
+    const executeCodeSectionIndex = getActiveNoteBlockCodeSection(state, block.content.from)
+
+    // if there is a code section already, ignore it and execute the code
+    // otherwise, execute the whole block
+    const content = state.doc.sliceString(block.content.from, executeCodeSectionIndex ? executeCodeSectionIndex - 1 : block.content.to)
+
     window.heynote.buffer.executeCode(executor.getContext(blockLanguage, content)).then((codeResult) => {
         dispatch({
             changes: {
-                from: block.content.to,
+                from: executeCodeSectionIndex ? executeCodeSectionIndex : block.content.to,
                 to: block.content.to,
-                insert: "\n---\n" + codeResult,
+                insert: "\n#---#\n" + codeResult,
             },
             annotations: [heynoteEvent.of(SET_CONTENT)],
         })

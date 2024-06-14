@@ -1,6 +1,6 @@
 import { ViewPlugin, EditorView, Decoration, WidgetType, lineNumbers } from "@codemirror/view"
 import { layer, RectangleMarker } from "@codemirror/view"
-import { EditorState, RangeSetBuilder, StateField, Facet , StateEffect, RangeSet} from "@codemirror/state";
+import { EditorState, RangeSetBuilder, StateField, Facet, StateEffect, RangeSet } from "@codemirror/state";
 import { syntaxTree, ensureSyntaxTree } from "@codemirror/language"
 import { Note, Document, NoteDelimiter } from "../lang-heynote/parser.terms.js"
 import { IterMode } from "@lezer/common";
@@ -13,8 +13,8 @@ import { emptyBlockSelected } from "./select-all.js";
 // tracks the size of the first delimiter
 let firstBlockDelimiterSize
 
-function getBlocks(state, timeout=50) {
-    const blocks = [];  
+function getBlocks(state, timeout = 50) {
+    const blocks = [];
     const tree = ensureSyntaxTree(state, state.doc.length, timeout)
     if (tree) {
         tree.iterate({
@@ -85,6 +85,34 @@ export function getLastNoteBlock(state) {
 
 export function getNoteBlockFromPos(state, pos) {
     return state.facet(blockState).find(block => block.range.from <= pos && block.range.to >= pos)
+}
+
+/**
+ * 
+ * @param {any} state 
+ * @param {number} pos 
+ * @returns the position of the #---# sequence in the block
+ */
+export function getActiveNoteBlockCodeSection(state, pos) {
+    // find the block that the cursor is in
+    const block = getNoteBlockFromPos(state, pos)
+
+    /**
+     * @type {string} content the content of the block
+     */
+    const content = state.doc.sliceString(block.content.from, block.content.to)
+    const executeCodeNode = content.match(/\#\-\-\-\#/gi)
+
+    if (executeCodeNode) {
+        // find the position of the #---# sequence
+        const executeCodePos = content.indexOf("#---#")
+        console.log("executeCodePos:", executeCodePos)
+        // return the position of the #---# sequence
+        return block.content.from + executeCodePos - 1
+    }
+
+
+    return 0
 }
 
 
