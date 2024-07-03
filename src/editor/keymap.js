@@ -21,6 +21,7 @@ import { pasteCommand, copyCommand, cutCommand } from "./copy-paste.js"
 
 import { formatBlockContent } from "./block/format-code.js"
 import { deleteLine } from "./block/delete-line.js"
+import printPage from "./print.js"
 
 
 export function keymapFromSpec(specs) {
@@ -63,6 +64,7 @@ export function heynoteKeymap(editor) {
         ["Mod-Alt-ArrowUp", newCursorAbove],
         ["Mod-Shift-k", deleteLine],
         ["Mod-Shift-e", executeCodeInCurrentBlock],
+        ["Mod-p", printPage],
         {key:"Mod-ArrowUp", run:gotoPreviousBlock, shift:selectPreviousBlock},
         {key:"Mod-ArrowDown", run:gotoNextBlock, shift:selectNextBlock},
         {key:"Ctrl-ArrowUp", run:gotoPreviousParagraph, shift:selectPreviousParagraph},
